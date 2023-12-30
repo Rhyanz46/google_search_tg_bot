@@ -1,0 +1,13 @@
+version: "3.8"
+
+services:
+  my_telegram_bot:
+    build: .
+    environment:
+      - TELEGRAM_API=6828585043:AAEI-ELUKL8GxQJy22Hi-pE098ULgMfq6GQ
+      - GOOGLE_CX=15976cb4f861b492d
+      - GOOGLE_API=AIzaSyDcVktTy9Eud_3-FT09ocdMmBFVpYe1dKY
+#    volumes:
+#      - ./your_bot_directory:/usr/src/app
+#    command: ["sleep", "10000"]
+#    command: ["python", "scene.py"]
