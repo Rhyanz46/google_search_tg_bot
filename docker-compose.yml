@@ -7,7 +7,29 @@ services:
       - TELEGRAM_API=6828585043:AAEI-ELUKL8GxQJy22Hi-pE098ULgMfq6GQ
       - GOOGLE_CX=15976cb4f861b492d
       - GOOGLE_API=AIzaSyDcVktTy9Eud_3-FT09ocdMmBFVpYe1dKY
-#    volumes:
-#      - ./your_bot_directory:/usr/src/app
-#    command: ["sleep", "10000"]
-#    command: ["python", "scene.py"]
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=db
+      - DB_USER=root
+      - DB_PASSWORD=password
+    depends_on:
+      - mysql
+    command: ["python", "baru.py"]
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: db
+#    ports:
+#      - "33055:3306"
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+    ports:
+      - "1110:80"
+    depends_on:
+      - mysql

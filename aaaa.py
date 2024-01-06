@@ -1,5 +1,4 @@
 from __future__ import annotations
-from aiogram.enums import ParseMode
 
 import asyncio
 import logging
@@ -19,21 +18,10 @@ from aiogram.types import (
     ReplyKeyboardRemove,
 )
 
-from aiogram.utils.formatting import (
-    Bold,
-    as_key_value,
-    as_list,
-    as_numbered_list,
-    as_section,
-)
-
-import settings
-from main import search_google, mobile_agent, desktop_agent
-
 BUTTON_CANCEL = KeyboardButton(text="❌ Cancel")
 BUTTON_BACK = KeyboardButton(text="🔙 Back")
 
-code = "12345"
+import settings
 
 
 class FSMData(TypedDict, total=False):
@@ -71,6 +59,13 @@ class LanguageScene(CancellableScene, state="language"):
             ),
         )
 
+    @on.message(F.text.casefold() == "python", after=After.exit())
+    async def process_python(self, message: Message):
+        await message.answer(
+            "Python, you say? That's the language that makes my circuits light up! 😉"
+        )
+        await self.input_language(message)
+
     @on.message(after=After.exit())
     async def input_language(self, message: Message):
         data: FSMData = await self.wizard.get_data()
@@ -79,7 +74,7 @@ class LanguageScene(CancellableScene, state="language"):
     async def show_results(self, message: Message, name: str, language: str) -> None:
         await message.answer(
             text=f"I'll keep in mind that, {html.quote(name)}, "
-            f"you like to write bots with {html.quote(language)}.",
+                 f"you like to write bots with {html.quote(language)}.",
             reply_markup=ReplyKeyboardRemove(),
         )
 
@@ -92,10 +87,11 @@ class LikeBotsScene(CancellableScene, state="like_bots"):
     @on.message.enter()
     async def on_enter(self, message: Message):
         await message.answer(
-            "Pilih Aksi selanjutnya",
+            "Did you like to write bots?",
             reply_markup=ReplyKeyboardMarkup(
                 keyboard=[
-                    [BUTTON_BACK,],
+                    [KeyboardButton(text="Yes"), KeyboardButton(text="No")],
+                    [BUTTON_BACK, BUTTON_CANCEL],
                 ],
                 resize_keyboard=True,
             ),
@@ -125,7 +121,7 @@ class NameScene(CancellableScene, state="name"):
     @on.message.enter()  # Marker for handler that should be called when a user enters the scene.
     async def on_enter(self, message: Message):
         await message.answer(
-            "Tuliskan Kata Kunci Pencarian",
+            "Hi there! What's your name?",
             reply_markup=ReplyKeyboardMarkup(keyboard=[[BUTTON_CANCEL]], resize_keyboard=True),
         )
 
@@ -138,28 +134,7 @@ class NameScene(CancellableScene, state="name"):
     async def on_leave(self, message: Message):
         data: FSMData = await self.wizard.get_data()
         name = data.get("name", "Anonymous")
-        await message.answer("Sedang mencari . . . ")
-        mobile_search_result = await search_google(name, mobile_agent)
-        desktop_search_result = await search_google(name, desktop_agent)
-        print("mencari : ", name)
-
-        if not mobile_search_result and not mobile_search_result:
-            await message.answer("Tidak ada hasil ")
-            return
-
-        content = as_list(
-            as_section(
-                Bold("Mobile Result:\n"),
-                as_numbered_list(*mobile_search_result),
-            ),
-            "",
-            as_section(
-                Bold("Desktop Result:\n"),
-                as_numbered_list(*desktop_search_result),
-            ),
-            "",
-        )
-        await message.answer(**content.as_kwargs(), reply_markup=ReplyKeyboardRemove())
+        await message.answer(f"Nice to meet you, {html.quote(name)}!")
 
     @on.message(after=After.goto(LikeBotsScene))
     async def input_name(self, message: Message):
@@ -178,8 +153,10 @@ class DefaultScene(
     This scene is used to handle all messages that are not handled by other scenes.
     """
 
-    @on.message(Command("search"))
-    async def search(self, message: Message):
+    start_demo = on.message(F.text.casefold() == "demo", after=After.goto(NameScene))
+
+    @on.message(Command("demo"))
+    async def demo(self, message: Message):
         await message.answer(
             "Demo started",
             reply_markup=InlineKeyboardMarkup(
@@ -188,31 +165,20 @@ class DefaultScene(
         )
 
     @on.callback_query(F.data == "start", after=After.goto(NameScene))
-    async def search_callback(self, callback_query: CallbackQuery):
+    async def demo_callback(self, callback_query: CallbackQuery):
         await callback_query.answer(cache_time=0)
         await callback_query.message.delete_reply_markup()
-
-    # @on.message.enter()  # Mark that this handler should be called when a user enters the scene.
-    # @on.message()
-    # async def default_handler(self, message: Message):
-    #     await message.answer(
-    #         "Pilih Fitur : ",
-    #         reply_markup=ReplyKeyboardMarkup(
-    #             keyboard=[[KeyboardButton(text="Search")], [KeyboardButton(text="DDOS!")]],
-    #             resize_keyboard=True,
-    #         ),
-    #     )
 
     @on.message.enter()  # Mark that this handler should be called when a user enters the scene.
     @on.message()
     async def default_handler(self, message: Message):
-        if str(message.text).lower() != '/start':
-            if message.text == code:
-                await message.answer("masuk pak eko")
-            else:
-                await message.answer("kode salah")
-            return
-        await message.answer("Masukkan Kode Verification ")
+        await message.answer(
+            "Start demo?\nYou can also start demo via command /demo",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard=[[KeyboardButton(text="Demo")]],
+                resize_keyboard=True,
+            ),
+        )
 
 
 def create_dispatcher() -> Dispatcher:
