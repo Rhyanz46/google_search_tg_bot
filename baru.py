@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import asyncio
 import logging
-from typing import TypedDict, Any
+from typing import TypedDict, Any, Type
 
 from aiogram import Bot, Dispatcher, F, html
 from aiogram.filters import Command
@@ -37,7 +37,7 @@ import errors
 from database import (
     get_all_users, get_active_user, save_user, active_user,
     add_user_command, remove_user_command, CommandSearch, my_search_commands,
-    is_user_command_exist
+    is_user_command_exist, get_user_command
 )
 
 BUTTON_CANCEL = KeyboardButton(text="❌ Cancel")
@@ -405,11 +405,6 @@ class MainScene(CancellableScene, state="code"):
         except Exception as _:
             await self.wizard.back()
 
-    # @on.callback_query.enter()  # different types of updates that start the scene also supported.
-    # async def on_enter_callback(self, callback_query: CallbackQuery):
-    #     await callback_query.answer()
-    #     await self.on_enter(callback_query.message)
-
     @on.message(F.text.casefold() == "/cari")
     async def handle_cari(self, message: Message):
         try:
@@ -466,7 +461,43 @@ class MainScene(CancellableScene, state="code"):
 
     @on.message()
     async def handle_all_command(self, message: Message):
-        await message.answer("Perintah tidak di ketahui")
+        cmd: Type[CommandSearch] | None = None
+        if message.text[0] == "/":
+            try:
+                cmd = get_user_command(message.from_user.id, message.text)
+            except Exception as e:
+                await message.answer(f"Error : {e}")
+                return
+
+        if cmd is None:
+            await message.answer("Perintah tidak di ketahui")
+            return
+
+        try:
+            get_active_user(message.from_user.id)
+            await message.answer("Mencari . . .")
+            mobile_search_result = await search_google(cmd.keyword, mobile_agent)
+            desktop_search_result = await search_google(cmd.keyword, desktop_agent)
+            if not mobile_search_result and not mobile_search_result:
+                await message.answer("Tidak ada hasil ")
+                return
+
+            content = as_list(
+                as_section(
+                    Bold("Mobile Result:\n"),
+                    as_numbered_list(*mobile_search_result),
+                ),
+                "",
+                as_section(
+                    Bold("Desktop Result:\n"),
+                    as_numbered_list(*desktop_search_result),
+                ),
+                "",
+            )
+            await message.answer(**content.as_kwargs(), reply_markup=ReplyKeyboardRemove())
+        except errors.VerifyCodeWrong as e:
+            await self.wizard.goto(VerifyScene)
+
 
     # @on.message.leave()  # Marker for handler that should be called when a user leaves the scene.
     # async def on_leave(self, message: Message):

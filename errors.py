@@ -13,6 +13,11 @@ class CommandIsAlreadyExist(Exception):
         return "Command is already exist"
 
 
+class CommandIsNotFound(Exception):
+    def __str__(self):
+        return "Command is already exist"
+
+
 class CmdNotFound(Exception):
     def __str__(self):
         return "Command is not found"

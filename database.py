@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Type
 
 import settings
 import errors
@@ -69,6 +69,17 @@ def is_user_command_exist(telegram_id: int, cmd_str: str) -> bool:
     if session.query(CommandSearch).filter_by(user_id=user.id, command=cmd_str).count():
         return True
     return False
+
+
+def get_user_command(telegram_id: int, cmd_str: str) -> Type[CommandSearch] | None:
+    session = Session()
+    user = session.query(User).filter_by(telegram_id=telegram_id).first()
+    if user is None:
+        raise errors.UserNotFound()
+    cmd = session.query(CommandSearch).filter_by(user_id=user.id, command=cmd_str).first()
+    if cmd is None:
+        return None
+    return cmd
 
 
 def add_user_command(telegram_id: int, cmd: CommandSearch):
