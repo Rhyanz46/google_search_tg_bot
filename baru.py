@@ -37,7 +37,7 @@ import errors
 from database import (
     get_all_users, get_active_user, save_user, active_user,
     add_user_command, remove_user_command, CommandSearch, my_search_commands,
-    is_user_command_exist, get_user_command
+    is_user_command_exist, get_user_command, update_user
 )
 
 BUTTON_CANCEL = KeyboardButton(text="❌ Cancel")
@@ -96,6 +96,43 @@ class VerifyScene(Scene, state="verify_state"):
             await self.wizard.goto(MainScene)
         except errors.VerifyCodeWrong as e:
             await message.answer("Kode salah, silahkan masukkan lagi : ")
+
+
+class UserListScene(Scene, state="user_list_state"):
+
+    @on.message.enter()
+    async def on_enter(self, message: Message):
+        try:
+            get_active_user(message.from_user.id)
+        except Exception as _:
+            await self.wizard.goto(DefaultScene)
+        await message.answer("Mengambil daftar pengguna . . . ")
+        all_user = get_all_users()
+        if len(all_user) == 0:
+            await message.answer("masih belum ada pengguna :( ")
+            return
+        content = as_list(
+            as_section(
+                Bold("Daftar Pengguna Saat ini:\n"),
+                as_numbered_list(*all_user),
+            ),
+            "\nSilahkan pilih action"
+        )
+
+        markup = ReplyKeyboardBuilder()
+        markup.button(text="Delete")
+        markup.button(text="Blacklist")
+        markup.button(text="🔙 Back")
+        await self.wizard.update_data(command="/daftar_pengguna")
+        await message.answer(**content.as_kwargs(), reply_markup = markup.adjust(2).as_markup(resize_keyboard=True))
+
+    @on.message(F.text == "🔙 Back")
+    async def back(self, message: Message) -> None:
+        return await self.wizard.goto(MainScene)
+
+    @on.message()
+    async def input_action(self, message: Message):
+        await message.answer("saya tidak mengerti")
 
 
 class RemoveCommandScene(Scene, state="remove_command_state"):
@@ -243,22 +280,11 @@ class AddCommandScene(Scene, state="add_command_state"):
 
     @on.message(F.text == "🔙 Back")
     async def back(self, message: Message, state: FSMContext) -> None:
-        """
-        Method triggered when the user selects the "Back" button.
-
-        It allows the user to go back to the previous question.
-
-        :param message:
-        :param state:
-        :return:
-        """
         data = await state.get_data()
         step = data["step"]
 
         previous_step = step - 1
         if previous_step < 0:
-            # In case when the user tries to go back from the first question,
-            # we just exit the quiz
             return await self.wizard.exit()
         return await self.wizard.back(step=previous_step)
 
@@ -437,22 +463,9 @@ class MainScene(CancellableScene, state="code"):
     async def daftar_pengguna_perintah(self, message: Message):
         try:
             get_active_user(message.from_user.id)
+            await self.wizard.goto(UserListScene)
         except Exception as _:
             await self.wizard.goto(DefaultScene)
-        await message.answer("Mengambil daftar pengguna . . . ")
-        all_user = get_all_users()
-        if len(all_user) == 0:
-            await message.answer("masih belum ada pengguna :( ")
-            return
-        content = as_list(
-            as_section(
-                Bold("Daftar Pengguna Saat ini:\n"),
-                as_numbered_list(*all_user),
-            ),
-            "\nSilahkan pilih action"
-        )
-        await self.wizard.update_data(command="/daftar_pengguna")
-        await message.answer(**content.as_kwargs(), reply_markup=ReplyKeyboardRemove())
 
     @on.message(F.text.casefold() == BUTTON_STOP_COMMAND.text.casefold(), )
     async def handle_stop(self, message: Message):
@@ -539,12 +552,12 @@ class DefaultScene(
             )
             return
         try:
-            get_active_user(message.from_user.id)
+            update_user(message.from_user.id, message.from_user.full_name, message.from_user.username)
             await self.wizard.goto(MainScene)
         except errors.UserNotFound as e:
             confirm_code = str(uuid4())
             confirm_code = confirm_code.replace("-", "")
-            save_user(message.from_user.id, message.from_user.full_name, confirm_code)
+            save_user(message.from_user.id, message.from_user.full_name, message.from_user.username, confirm_code)
             await bot(SendMessage(chat_id=settings.ADMIN_USER_ID,
                                   text=f"this is code for @{message.from_user.username}\n{confirm_code}"))
             await message.answer(
@@ -572,7 +585,8 @@ def create_dispatcher() -> Dispatcher:
         MainScene,
         SearchScene,
         AddCommandScene,
-        RemoveCommandScene
+        RemoveCommandScene,
+        UserListScene
     )
 
     return dispatcher

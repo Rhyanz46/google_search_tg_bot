@@ -16,6 +16,7 @@ class User(Base):
     id = mapped_column(Integer, Sequence('user_id_seq'), primary_key=True)
     telegram_id = Column(Integer, unique=True)
     fullname = Column(String(255))
+    username = Column(String(255))
     verify_code = Column(String(50))
     verified = Column(Boolean())
     command_search: Mapped[List["CommandSearch"]] = relationship(back_populates="user")
@@ -53,9 +54,9 @@ Session = sessionmaker(bind=engine)
 print("connected : ", DATABASE_URL)
 
 
-def save_user(telegram_id, fullname, verify_code):
+def save_user(telegram_id, fullname, username, verify_code):
     session = Session()
-    user = User(telegram_id=telegram_id, fullname=fullname, verify_code=verify_code)
+    user = User(telegram_id=telegram_id, fullname=fullname, verify_code=verify_code, username=username)
     session.add(user)
     session.commit()
     session.close()
@@ -137,7 +138,7 @@ def active_user(telegram_id, verify_code):
     session.close()
 
 
-def get_active_user(telegram_id):
+def get_active_user(telegram_id) -> Type[User]:
     session = Session()
     user = session.query(User).filter_by(telegram_id=telegram_id).first()
     if user is None:
@@ -147,14 +148,21 @@ def get_active_user(telegram_id):
     session.flush()
     session.commit()
     session.close()
+    return user
 
 
 def get_all_users():
     session = Session()
     users = session.query(User).all()
     session.close()
-    users = [user.get_as_string() for user in users]
-    print("users")
-    print(users)
-    print("users")
-    return users
+    return [f"@{user.username}({user.telegram_id})" for user in users]
+
+
+def update_user(telegram_id, fullname, username):
+    session = Session()
+    user = get_active_user(telegram_id)
+    user.fullname = fullname
+    user.username = username
+    session.flush()
+    session.commit()
+    session.close()
